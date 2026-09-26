@@ -1,0 +1,322 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// Um cliente cadastrado. O telefone é a chave usada para reconhecer o cliente
+// na hora de fechar um pedido (dígitos, sem formatação, ver phoneDigits).
+model Customer {
+  id            Int      @id @default(autoincrement())
+
+  name          String   @db.VarChar(150)
+
+  // Telefone como foi digitado, pra exibir
+  phone         String   @db.VarChar(30)
+
+  // Só os dígitos do telefone, usado pra reconhecer o cliente (único)
+  phoneDigits   String   @unique @db.VarChar(20)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("customers")
+}
+
+// Um filamento cadastrado (uma cor/material específico que a empresa compra).
+model Filament {
+  id            Int      @id @default(autoincrement())
+
+  // Nome da cor, ex: "Preto", "Branco Gelo", "Vermelho Fosco"
+  colorName     String   @db.VarChar(100)
+
+  // Material, ex: "PLA", "PETG", "ABS". Opcional por enquanto.
+  material      String?  @db.VarChar(50)
+
+  // Marca do filamento. Opcional.
+  brand         String?  @db.VarChar(100)
+
+  // Valor pago por quilo (R$), ex: 89.90
+  pricePerKg    Decimal  @db.Decimal(10, 2)
+
+  // Peso do rolo comprado, em gramas (ex: 1000 ou 500)
+  rollWeightG   Int
+
+  // Estoque atual, em gramas. É abatido automaticamente quando um pedido é fechado.
+  // Decimal (não Int) pra aceitar consumo exato de placas com várias peças (ex: 10,3g/peça).
+  stockGrams    Decimal  @default(0) @db.Decimal(10, 2)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  quoteItems      QuoteItem[]
+  orderItems      OrderItem[]
+  stockPieceItems StockPieceItem[]
+
+  @@map("filaments")
+}
+
+// Um orçamento/cálculo de preço de uma peça (pode usar mais de um filamento, ex: multicolor).
+// Quando vira pedido (ver Order), o orçamento é apagado — os dados vão copiados pro pedido.
+model Quote {
+  id                Int         @id @default(autoincrement())
+
+  // Nome da peça/produto orçado
+  productName       String      @db.VarChar(150)
+
+  // Nome e telefone do cliente, se você já souber pra quem é (pode preencher depois, ao fechar o pedido)
+  customerName      String?     @db.VarChar(150)
+  customerPhone     String?     @db.VarChar(30)
+
+  // Tempo de impressão em horas (aceita fração, ex: 3.5 = 3h30)
+  printTimeHours    Decimal     @db.Decimal(6, 2)
+
+  // Custo por hora de impressão usado neste orçamento (R$), ex: 1.00
+  printCostPerHour  Decimal     @db.Decimal(10, 2)
+
+  // Custo de impressão = printTimeHours * printCostPerHour
+  printCost         Decimal     @db.Decimal(10, 2)
+
+  // Soma do custo de todos os filamentos usados (itens abaixo)
+  filamentCost      Decimal     @db.Decimal(10, 2)
+
+  // Custo extra opcional, fora o filamento e a impressão (ex: parafuso, LED, tinta,
+  // embalagem comprada de outro material). Ver extraCostNote pra saber do que se trata.
+  extraCost         Decimal     @default(0) @db.Decimal(10, 2)
+
+  // Do que se trata o custo extra, ex: "Parafusos e insertos". Opcional.
+  extraCostNote     String?     @db.VarChar(150)
+
+  // printCost + filamentCost + extraCost
+  totalCost         Decimal     @db.Decimal(10, 2)
+
+  // Valor sugerido de venda = totalCost * 2 (referência)
+  suggestedPrice    Decimal     @db.Decimal(10, 2)
+
+  // Preço de venda de fato (pode ser igual ao sugerido ou ajustado pra mais/menos)
+  salePrice         Decimal     @db.Decimal(10, 2)
+
+  // Taxa da Shopee sobre o preço de venda (20% + R$4 fixo, faixa até R$79)
+  shopeeFee         Decimal     @db.Decimal(10, 2)
+
+  // Valor líquido recebido se vender na Shopee pelo preço de venda
+  shopeeNet         Decimal     @db.Decimal(10, 2)
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items             QuoteItem[]
+
+  @@map("quotes")
+}
+
+// Um filamento usado dentro de um orçamento (uma peça multicolor tem vários).
+model QuoteItem {
+  id            Int      @id @default(autoincrement())
+
+  quote         Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quoteId       Int
+
+  // Referência ao cadastro de filamentos (pode ficar nulo se o filamento for excluído depois)
+  filament      Filament? @relation(fields: [filamentId], references: [id], onDelete: SetNull)
+  filamentId    Int?
+
+  // Nome da cor no momento do orçamento (guardado à parte, caso o filamento mude ou seja excluído)
+  colorName     String   @db.VarChar(100)
+
+  // Gramas usadas dessa cor nessa peça
+  gramsUsed     Int
+
+  // Preço por grama no momento do orçamento
+  pricePerGram  Decimal  @db.Decimal(10, 6)
+
+  // gramsUsed * pricePerGram
+  lineCost      Decimal  @db.Decimal(10, 2)
+
+  @@map("quote_items")
+}
+
+enum OrderStatus {
+  PENDENTE
+  EM_PRODUCAO
+  PRONTO_PARA_ENTREGA
+  // Só se aplica a pedidos da Shopee (postados pelos Correios/transportadora da Shopee).
+  ENVIADO
+  FINALIZADO
+}
+
+// Canal pelo qual o pedido foi de fato vendido, escolhido ao fechar o pedido.
+enum SaleChannel {
+  DIRETA
+  SHOPEE
+}
+
+// Um pedido fechado. Guarda uma cópia dos dados do orçamento que deu origem a ele
+// (o orçamento original é apagado ao fechar o pedido), mais os dados do cliente,
+// entrega e o status de andamento.
+model Order {
+  id                Int         @id @default(autoincrement())
+
+  // Cópia dos dados de custo do orçamento no momento em que o pedido foi fechado
+  productName       String      @db.VarChar(150)
+  printTimeHours    Decimal     @db.Decimal(6, 2)
+  printCostPerHour  Decimal     @db.Decimal(10, 2)
+  printCost         Decimal     @db.Decimal(10, 2)
+  filamentCost      Decimal     @db.Decimal(10, 2)
+  extraCost         Decimal     @default(0) @db.Decimal(10, 2)
+  extraCostNote     String?     @db.VarChar(150)
+  totalCost         Decimal     @db.Decimal(10, 2)
+  suggestedPrice    Decimal     @db.Decimal(10, 2)
+  salePrice         Decimal     @db.Decimal(10, 2)
+  shopeeFee         Decimal     @db.Decimal(10, 2)
+  shopeeNet         Decimal     @db.Decimal(10, 2)
+
+  customerName      String      @db.VarChar(150)
+
+  // Opcional: pedidos vindos de uma venda de peça em estoque (feira) podem não ter
+  // telefone, quando a venda é anônima.
+  customerPhone     String?     @db.VarChar(30)
+  deliveryAddress   String      @db.Text
+
+  // Prazo combinado para a entrega
+  deliveryDeadline  DateTime    @db.Date
+
+  status            OrderStatus @default(PENDENTE)
+
+  // Canal de venda escolhido ao fechar o pedido (afeta qual "lucro" é o de fato real)
+  saleChannel       SaleChannel @default(DIRETA)
+
+  // Se o cliente já pagou esse pedido
+  isPaid            Boolean     @default(false)
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items             OrderItem[]
+
+  @@map("orders")
+}
+
+// Um filamento usado dentro de um pedido (cópia do QuoteItem no momento do fechamento).
+model OrderItem {
+  id            Int      @id @default(autoincrement())
+
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       Int
+
+  filament      Filament? @relation(fields: [filamentId], references: [id], onDelete: SetNull)
+  filamentId    Int?
+
+  colorName     String   @db.VarChar(100)
+  gramsUsed     Int
+  pricePerGram  Decimal  @db.Decimal(10, 6)
+  lineCost      Decimal  @db.Decimal(10, 2)
+
+  @@map("order_items")
+}
+
+// Uma peça física já pronta guardada em estoque pra vender direto (ex: em feiras).
+// Funciona como uma vitrine: tem foto, custo calculado (igual orçamento) e o preço
+// que você decidiu cobrar, além de quantas unidades idênticas existem prontas agora.
+model StockPiece {
+  id                Int      @id @default(autoincrement())
+
+  productName       String   @db.VarChar(150)
+
+  // Foto do produto, guardada como data URL (base64) — mais simples e portátil
+  // do que depender de um disco local que pode não sobreviver a um deploy.
+  photoDataUrl      String?  @db.LongText
+
+  // Custo calculado pra UMA unidade (mesma lógica do orçamento).
+  printTimeHours    Decimal  @db.Decimal(6, 2)
+  printCostPerHour  Decimal  @db.Decimal(10, 2)
+  printCost         Decimal  @db.Decimal(10, 2)
+  filamentCost      Decimal  @db.Decimal(10, 2)
+  extraCost         Decimal  @default(0) @db.Decimal(10, 2)
+  extraCostNote     String?  @db.VarChar(150)
+  totalCost         Decimal  @db.Decimal(10, 2)
+  suggestedPrice    Decimal  @db.Decimal(10, 2)
+
+  // Preço que você decidiu cobrar por unidade (pode ajustar, ex: na hora da feira).
+  salePrice         Decimal  @db.Decimal(10, 2)
+
+  // Quantas unidades idênticas dessa peça tem prontas em estoque agora.
+  quantity          Int      @default(1)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  items             StockPieceItem[]
+
+  @@map("stock_pieces")
+}
+
+// Um filamento usado numa peça em estoque (cópia do padrão de QuoteItem/OrderItem).
+// gramsUsed é a quantidade usada em UMA unidade — o total abatido do estoque de
+// filamento, ao criar ou editar a peça, é gramsUsed * quantity.
+model StockPieceItem {
+  id            Int      @id @default(autoincrement())
+
+  stockPiece    StockPiece @relation(fields: [stockPieceId], references: [id], onDelete: Cascade)
+  stockPieceId  Int
+
+  filament      Filament? @relation(fields: [filamentId], references: [id], onDelete: SetNull)
+  filamentId    Int?
+
+  colorName     String   @db.VarChar(100)
+  // Decimal (não Int) pra guardar exatamente o resultado da divisão de uma placa
+  // com várias peças (ex: 10,3g), sem arredondar pro grama inteiro.
+  gramsUsed     Decimal  @db.Decimal(10, 2)
+  pricePerGram  Decimal  @db.Decimal(10, 6)
+  lineCost      Decimal  @db.Decimal(10, 2)
+
+  @@map("stock_piece_items")
+}
+
+// Usuário que pode entrar no sistema. Não existe cadastro público: contas são
+// criadas pelo terminal (npm run user:create). A senha nunca é guardada, só o
+// hash scrypt (com salt e parâmetros embutidos, ver src/lib/auth/password.ts).
+model User {
+  id                  Int       @id @default(autoincrement())
+
+  username            String    @unique @db.VarChar(50)
+  passwordHash        String    @db.VarChar(255)
+
+  // Proteção contra força bruta: após várias senhas erradas seguidas a conta
+  // fica travada até lockedUntil.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+
+  sessions            Session[]
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("users")
+}
+
+// Sessão ativa. O JWT do cookie carrega o id da sessão (jti); o servidor confere
+// se ela ainda existe aqui a cada requisição, então sair (ou trocar a senha)
+// invalida o token na hora, mesmo que alguém tenha copiado o cookie.
+model Session {
+  id          String   @id @db.VarChar(64)
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  userAgent   String?  @db.VarChar(255)
+  ip          String?  @db.VarChar(64)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}

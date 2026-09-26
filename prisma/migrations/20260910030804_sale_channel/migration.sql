@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `orders` ADD COLUMN `saleChannel` ENUM('DIRETA', 'SHOPEE') NOT NULL DEFAULT 'DIRETA';
