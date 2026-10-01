@@ -18,8 +18,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Id inválido." }, { status: 400 });
   }
 
+  const existing = await prisma.stockPiece.findUnique({ where: { id: pieceId }, include: { items: true } });
+  if (!existing) {
+    return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+  }
+
   const body = await request.json();
-  const resolved = await resolveStockPieceInput(body);
+  const resolved = await resolveStockPieceInput(body, existing.items);
   if ("error" in resolved) {
     return NextResponse.json({ error: resolved.error }, { status: 400 });
   }
@@ -34,11 +39,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
     quantity,
     items,
   } = resolved.data;
-
-  const existing = await prisma.stockPiece.findUnique({ where: { id: pieceId }, include: { items: true } });
-  if (!existing) {
-    return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
-  }
 
   const calc = calculateQuote({ printTimeHours, printCostPerHour, items, extraCost, salePrice });
 
@@ -84,6 +84,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     // Abate a nova composição (gramas × quantidade nova).
     for (const item of items) {
+      if (item.filamentId == null) continue;
       await tx.filament.update({
         where: { id: item.filamentId },
         data: { stockGrams: { decrement: item.gramsUsed * quantity } },

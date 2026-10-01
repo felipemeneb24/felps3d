@@ -3,10 +3,10 @@ import type { Quote, QuoteItem } from "@/generated/prisma/client";
 // Custo padrão de impressão por hora (R$). Editável por orçamento no formulário.
 export const DEFAULT_PRINT_COST_PER_HOUR = 1;
 
-// Regra da Shopee para produtos até R$79: 20% de comissão + R$4,00 fixo.
+// Regra da Shopee para produtos até R$79,99: 20% de comissão + R$4,50 fixo por item.
 export const SHOPEE_COMMISSION_RATE = 0.2;
-export const SHOPEE_FIXED_FEE = 4;
-export const SHOPEE_TIER_LIMIT = 79;
+export const SHOPEE_FIXED_FEE = 4.5;
+export const SHOPEE_TIER_LIMIT = 79.99;
 
 export function round(value: number, decimals = 2) {
   const factor = 10 ** decimals;

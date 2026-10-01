@@ -9,12 +9,16 @@ import { IconTrash, IconEdit, IconGrid } from "@/components/icons";
 import CostBreakdown from "@/components/CostBreakdown";
 import SellPieceForm from "./SellPieceForm";
 import SellShopeeForm from "./SellShopeeForm";
+import CartCheckout, { type CartLine } from "./CartCheckout";
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-type Line = { key: string; filamentId: string; gramsUsed: string };
+// kept = item salvo cujo filamento já foi excluído do cadastro: fica travado na peça
+// (cor, gramas por unidade e preço/g originais) pra não perder o histórico nem o custo.
+type KeptItem = { itemId: number; colorName: string; gramsUsed: number; pricePerGram: number };
+type Line = { key: string; filamentId: string; gramsUsed: string; kept?: KeptItem };
 
 function newLine(): Line {
   return { key: crypto.randomUUID(), filamentId: "", gramsUsed: "" };
@@ -95,6 +99,8 @@ export default function StockManager({
   const [flash, setFlash] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StockPieceDTO | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filamentById = useMemo(() => new Map(filaments.map((f) => [f.id, f])), [filaments]);
@@ -154,6 +160,15 @@ export default function StockManager({
         key: crypto.randomUUID(),
         filamentId: item.filamentId ? String(item.filamentId) : "",
         gramsUsed: String(item.gramsUsed),
+        kept:
+          item.filamentId == null
+            ? {
+                itemId: item.id,
+                colorName: item.colorName,
+                gramsUsed: item.gramsUsed,
+                pricePerGram: item.pricePerGram,
+              }
+            : undefined,
       }))
     );
     setSalePrice(String(piece.salePrice));
@@ -197,6 +212,10 @@ export default function StockManager({
     const rate = Number(printCostPerHour.replace(",", "."));
     const items = lines
       .map((line) => {
+        if (line.kept) {
+          const { colorName, gramsUsed, pricePerGram } = line.kept;
+          return { colorName, gramsUsed, pricePerGram };
+        }
         const filament = filamentById.get(Number(line.filamentId));
         const grams = round(Number(line.gramsUsed.replace(",", ".")) / divisor, 2);
         if (!filament || !Number.isFinite(grams) || grams <= 0) return null;
@@ -251,7 +270,7 @@ export default function StockManager({
       setError("Informe uma quantidade válida (pelo menos 1).");
       return;
     }
-    const validLines = lines.filter((l) => l.filamentId && l.gramsUsed);
+    const validLines = lines.filter((l) => l.kept || (l.filamentId && l.gramsUsed));
     if (validLines.length === 0) {
       setError("Adicione ao menos um filamento usado na peça.");
       return;
@@ -261,11 +280,16 @@ export default function StockManager({
     const hours = round(hoursTotal / pieceDivisor, 2);
     // Gramas por peça ficam com 2 casas decimais (não arredondadas pro grama inteiro) —
     // o estoque de filamento é abatido exatamente por esse valor.
-    const items = validLines.map((l) => ({
-      filamentId: Number(l.filamentId),
-      gramsUsed: round(Number(l.gramsUsed.replace(",", ".")) / pieceDivisor, 2),
-    }));
-    if (items.some((item) => item.gramsUsed <= 0)) {
+    // Itens de filamento excluído vão só com o id: o servidor mantém os dados originais.
+    const items = validLines.map((l) =>
+      l.kept
+        ? { keptItemId: l.kept.itemId }
+        : {
+            filamentId: Number(l.filamentId),
+            gramsUsed: round(Number(l.gramsUsed.replace(",", ".")) / pieceDivisor, 2),
+          }
+    );
+    if (items.some((item) => item.gramsUsed != null && item.gramsUsed <= 0)) {
       setError("Com essa quantidade, algum filamento fica com 0g por peça. Revise os totais da placa.");
       return;
     }
@@ -303,9 +327,8 @@ export default function StockManager({
       }
 
       const saved: StockPieceDTO = await res.json();
-      setPieces((prev) =>
-        editingId ? prev.map((p) => (p.id === saved.id ? saved : p)) : [saved, ...prev]
-      );
+      if (editingId) applyUpdatedPieces([saved]);
+      else setPieces((prev) => [saved, ...prev]);
       handleBackToVitrine();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
@@ -314,8 +337,57 @@ export default function StockManager({
     }
   }
 
+  // Atualiza as peças vendidas na vitrine e ajusta o carrinho ao estoque que sobrou
+  // (tira do carrinho o que esgotou, limita a quantidade ao disponível).
+  function applyUpdatedPieces(updated: StockPieceDTO[]) {
+    const byId = new Map(updated.map((p) => [p.id, p]));
+    setPieces((prev) => prev.map((p) => byId.get(p.id) ?? p));
+    setCart((prev) =>
+      prev
+        .map((line) => {
+          const piece = byId.get(line.pieceId);
+          return piece ? { ...line, quantity: Math.min(line.quantity, piece.quantity) } : line;
+        })
+        .filter((line) => line.quantity > 0)
+    );
+  }
+
+  function addToCart(piece: StockPieceDTO) {
+    setCart((prev) => {
+      const existing = prev.find((line) => line.pieceId === piece.id);
+      if (!existing) return [...prev, { pieceId: piece.id, quantity: 1 }];
+      return prev.map((line) =>
+        line.pieceId === piece.id ? { ...line, quantity: Math.min(line.quantity + 1, piece.quantity) } : line
+      );
+    });
+  }
+
+  function changeCartQuantity(pieceId: number, quantity: number) {
+    const available = pieces.find((p) => p.id === pieceId)?.quantity ?? 0;
+    const clamped = Math.max(1, Math.min(quantity, available));
+    setCart((prev) => prev.map((line) => (line.pieceId === pieceId ? { ...line, quantity: clamped } : line)));
+  }
+
+  function removeFromCart(pieceId: number) {
+    const next = cart.filter((line) => line.pieceId !== pieceId);
+    setCart(next);
+    if (next.length === 0) setCartOpen(false);
+  }
+
+  function handleCartSold(updated: StockPieceDTO[], channel: "DIRETA" | "SHOPEE") {
+    applyUpdatedPieces(updated);
+    setCart([]);
+    setCartOpen(false);
+    const units = cart.reduce((acc, line) => acc + line.quantity, 0);
+    setFlash(
+      `Venda do carrinho (${units} ${units === 1 ? "peça" : "peças"}) registrada${
+        channel === "SHOPEE" ? " na Shopee" : ""
+      }! Ela aparece como um pedido só em Pedidos.`
+    );
+  }
+
   function handleSold(piece: StockPieceDTO, channel: "DIRETA" | "SHOPEE" = "DIRETA") {
-    setPieces((prev) => prev.map((p) => (p.id === piece.id ? piece : p)));
+    applyUpdatedPieces([piece]);
     setSellingId(null);
     setSellingShopeeId(null);
     setFlash(
@@ -331,6 +403,7 @@ export default function StockManager({
       const res = await fetch(`/api/stock-pieces/${piece.id}?restock=${restock}`, { method: "DELETE" });
       if (res.ok) {
         setPieces((prev) => prev.filter((p) => p.id !== piece.id));
+        setCart((prev) => prev.filter((line) => line.pieceId !== piece.id));
         if (editingId === piece.id) resetForm();
         if (sellingId === piece.id) setSellingId(null);
         if (sellingShopeeId === piece.id) setSellingShopeeId(null);
@@ -519,6 +592,30 @@ export default function StockManager({
                   totalMode && divisor > 1 && Number.isFinite(gramsRaw) && gramsRaw > 0
                     ? round(gramsRaw / divisor, 2)
                     : null;
+                if (line.kept) {
+                  return (
+                    <div
+                      key={line.key}
+                      className="flex items-center justify-between gap-2 rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-sm"
+                    >
+                      <span>
+                        {line.kept.colorName}: {line.kept.gramsUsed}g por unidade
+                        <span className="block text-xs text-muted-foreground">
+                          Filamento excluído do cadastro — mantido na peça com o preço original.
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeLine(line.key)}
+                        disabled={lines.length === 1}
+                        className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-30"
+                        aria-label="Remover filamento"
+                      >
+                        <IconTrash className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                }
                 return (
                   <div key={line.key} className="flex flex-col gap-2 sm:flex-row sm:items-start">
                     <select
@@ -716,6 +813,26 @@ export default function StockManager({
                     </button>
                   </div>
 
+                  {(() => {
+                    const inCart = cart.find((line) => line.pieceId === piece.id)?.quantity ?? 0;
+                    const full = inCart >= piece.quantity;
+                    return (
+                      <button
+                        onClick={() => addToCart(piece)}
+                        disabled={full}
+                        className="rounded-md border border-accent/40 bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/15 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+                      >
+                        {piece.quantity <= 0
+                          ? "Sem estoque"
+                          : inCart > 0
+                            ? full
+                              ? `No carrinho (${inCart}) · máximo`
+                              : `+ Carrinho (${inCart} no carrinho)`
+                            : "+ Adicionar ao carrinho"}
+                      </button>
+                    );
+                  })()}
+
                   <button
                     onClick={() => setExpandedId(piece.id)}
                     className="self-start text-xs font-medium text-accent hover:underline"
@@ -756,6 +873,7 @@ export default function StockManager({
                   className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
                 >
                   {item.colorName}: {item.gramsUsed}g
+                  {item.filamentId == null && " (excluído)"}
                 </span>
               ))}
             </div>
@@ -771,6 +889,75 @@ export default function StockManager({
               shopeeFee={expandedPiece.shopeeFee}
               shopeeProfit={expandedPiece.shopeeProfit}
               overShopeeTier={expandedPiece.overShopeeTier}
+            />
+          </div>
+        </div>
+      )}
+
+      {cart.length > 0 && !cartOpen && (
+        <div className="sticky bottom-4 z-40 flex items-center justify-between gap-3 rounded-lg border border-accent/40 bg-card px-4 py-3 shadow-lg">
+          <div className="text-sm">
+            <p className="font-medium">
+              Carrinho: {cart.reduce((acc, line) => acc + line.quantity, 0)}{" "}
+              {cart.reduce((acc, line) => acc + line.quantity, 0) === 1 ? "peça" : "peças"}
+              <span className="text-muted-foreground">
+                {" "}
+                · {cart.length} {cart.length === 1 ? "modelo" : "modelos"}
+              </span>
+            </p>
+            <p className="font-semibold text-accent">
+              {formatBRL(
+                cart.reduce(
+                  (acc, line) => acc + (pieces.find((p) => p.id === line.pieceId)?.salePrice ?? 0) * line.quantity,
+                  0
+                )
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setCart([])}
+              className="rounded-md border border-border px-3 py-2 text-xs font-medium transition-colors hover:bg-muted"
+            >
+              Esvaziar
+            </button>
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
+            >
+              Finalizar venda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {cartOpen && cart.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setCartOpen(false)} aria-hidden />
+          <div className="relative flex max-h-[90vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-medium">Finalizar venda do carrinho</h3>
+                <p className="text-xs text-muted-foreground">Tudo vira um pedido só.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+                aria-label="Fechar"
+              >
+                Fechar
+              </button>
+            </div>
+            <CartCheckout
+              lines={cart}
+              pieces={pieces}
+              onChangeQuantity={changeCartQuantity}
+              onRemove={removeFromCart}
+              onCancel={() => setCartOpen(false)}
+              onSold={handleCartSold}
             />
           </div>
         </div>

@@ -122,7 +122,7 @@ export default function CostBreakdown({
             Vendendo na Shopee por {formatBRL(salePrice)}
           </div>
           <div className="flex flex-col divide-y divide-accent/15">
-            <Row label="Taxa da Shopee (20% + R$4,00)" value={shopeeFee} negative />
+            <Row label="Taxa da Shopee (20% + R$4,50)" value={shopeeFee} negative />
             <Row label="Custo de produção" value={totalCost} negative />
             <Row label="Lucro líquido na Shopee" value={shopeeProfit} strong accent signed />
           </div>

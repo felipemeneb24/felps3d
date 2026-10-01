@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { StockPieceItem } from "@/generated/prisma/client";
 import { DEFAULT_PRINT_COST_PER_HOUR } from "@/lib/quote";
 
 // ~4.3MB de imagem original, já contando o overhead de ~33% do base64.
@@ -15,17 +16,22 @@ export type ResolvedStockPieceInput = {
   /** Preço de venda informado pelo usuário; undefined = usar o valor sugerido (2x custo). */
   salePrice: number | undefined;
   quantity: number;
-  items: { filamentId: number; colorName: string; gramsUsed: number; pricePerGram: number }[];
+  /** filamentId null = filamento já excluído do cadastro (item mantido como histórico). */
+  items: { filamentId: number | null; colorName: string; gramsUsed: number; pricePerGram: number }[];
 };
 
-type RawItem = { filamentId: number; gramsUsed: number };
+// keptItemId aponta pra um item já salvo da peça cujo filamento foi excluído: ele é
+// mantido exatamente como estava (cor, gramas e preço/g), já que não dá mais pra
+// recalcular pelo cadastro.
+type RawItem = { filamentId?: number; gramsUsed?: number; keptItemId?: number };
 
 /**
  * Valida o corpo recebido para criar/editar uma peça em estoque e resolve cada item
  * de filamento contra o cadastro (preço/g atual). Compartilhado entre POST e PUT.
  */
 export async function resolveStockPieceInput(
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  existingItems: StockPieceItem[] = []
 ): Promise<{ data: ResolvedStockPieceInput } | { error: string }> {
   const productName = String(body.productName ?? "").trim();
   const printTimeHours = Number(body.printTimeHours);
@@ -64,12 +70,28 @@ export async function resolveStockPieceInput(
     return { error: "Foto muito grande. Use uma imagem menor (até uns 4MB)." };
   }
 
-  const filamentIds = rawItems.map((item) => Number(item.filamentId));
+  const filamentIds = rawItems
+    .filter((item) => item.keptItemId == null)
+    .map((item) => Number(item.filamentId));
   const filaments = await prisma.filament.findMany({ where: { id: { in: filamentIds } } });
   const filamentById = new Map(filaments.map((f) => [f.id, f]));
 
   const items: ResolvedStockPieceInput["items"] = [];
   for (const raw of rawItems) {
+    if (raw.keptItemId != null) {
+      const kept = existingItems.find(
+        (item) => item.id === Number(raw.keptItemId) && item.filamentId == null
+      );
+      if (!kept) return { error: "Filamento inválido em um dos itens." };
+      items.push({
+        filamentId: null,
+        colorName: kept.colorName,
+        gramsUsed: Number(kept.gramsUsed),
+        pricePerGram: Number(kept.pricePerGram),
+      });
+      continue;
+    }
+
     const filamentId = Number(raw.filamentId);
     const gramsUsed = Number(raw.gramsUsed);
     const filament = filamentById.get(filamentId);

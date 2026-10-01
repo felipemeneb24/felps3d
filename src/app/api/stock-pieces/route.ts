@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     for (const item of items) {
+      if (item.filamentId == null) continue;
       await tx.filament.update({
         where: { id: item.filamentId },
         data: { stockGrams: { decrement: item.gramsUsed * quantity } },
