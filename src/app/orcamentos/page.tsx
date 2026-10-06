@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toFilamentDTO } from "@/lib/filament";
 import { toQuoteDTO } from "@/lib/quote";
 import QuoteManager from "./QuoteManager";
@@ -7,7 +6,6 @@ import QuoteManager from "./QuoteManager";
 export const dynamic = "force-dynamic";
 
 export default async function OrcamentosPage() {
-  await requireUser();
   const [filaments, quotes] = await Promise.all([
     prisma.filament.findMany({ orderBy: [{ colorName: "asc" }] }),
     prisma.quote.findMany({

@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NAV_ITEMS } from "@/components/nav-items";
-import { IconMenu, IconClose, IconSpool, IconLogout } from "@/components/icons";
-import { logout } from "@/app/login/actions";
+import { IconMenu, IconClose, IconSpool } from "@/components/icons";
 
 function Brand() {
   return (
@@ -65,55 +64,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-// Rodapé da barra lateral: quem está logado + botão de sair, sempre visível.
-function UserFooter({ username }: { username: string | null }) {
-  return (
-    <div className="mt-auto flex items-center gap-2.5 border-t border-sidebar-border px-2 pt-4">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold uppercase text-accent">
-        {username?.charAt(0) ?? "?"}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-white">{username ?? "Usuário"}</p>
-        <p className="text-xs text-sidebar-foreground">Conectado</p>
-      </div>
-      <form action={logout}>
-        <button
-          type="submit"
-          className="flex items-center gap-1.5 rounded-md border border-sidebar-border px-2.5 py-1.5 text-xs font-medium text-sidebar-foreground transition-colors hover:border-danger/50 hover:bg-danger/10 hover:text-danger"
-          title="Sair do sistema"
-        >
-          <IconLogout className="h-4 w-4" />
-          Sair
-        </button>
-      </form>
-    </div>
-  );
-}
-
-// Telas fora do sistema (login) não mostram a barra lateral.
-const BARE_ROUTES = ["/login"];
-
-export default function AppShell({
-  children,
-  username,
-}: {
-  children: React.ReactNode;
-  username: string | null;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-
-  if (BARE_ROUTES.some((route) => pathname.startsWith(route))) {
-    return <>{children}</>;
-  }
-
   return (
     <div className="flex min-h-full">
       {/* Sidebar - desktop */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-6 overflow-y-auto border-r border-sidebar-border bg-sidebar px-3 py-5 md:flex">
         <Brand />
         <NavLinks />
-        <UserFooter username={username} />
       </aside>
 
       {/* Sidebar - mobile drawer */}
@@ -136,7 +94,6 @@ export default function AppShell({
               </button>
             </div>
             <NavLinks onNavigate={() => setOpen(false)} />
-            <UserFooter username={username} />
           </aside>
         </div>
       )}
@@ -152,16 +109,6 @@ export default function AppShell({
             <IconMenu className="h-5 w-5" />
           </button>
           <span className="flex-1 text-sm font-semibold">Felps 3D</span>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Sair do sistema"
-            >
-              <IconLogout className="h-5 w-5" />
-              Sair
-            </button>
-          </form>
         </header>
 
         <main className="flex-1 px-4 py-6 sm:px-6 md:px-10 md:py-10">

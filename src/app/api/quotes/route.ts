@@ -3,12 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { calculateQuote, toQuoteDTO } from "@/lib/quote";
 import { resolveQuoteInput } from "@/lib/quote-service";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 export async function GET() {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const quotes = await prisma.quote.findMany({
     orderBy: [{ createdAt: "desc" }],
     include: { items: true },
@@ -18,9 +14,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const body = await request.json();
   const resolved = await resolveQuoteInput(body);
   if ("error" in resolved) {

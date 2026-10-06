@@ -2,14 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toFilamentDTO } from "@/lib/filament";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const filamentId = Number(id);
   if (!Number.isInteger(filamentId)) {
@@ -71,9 +67,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const filamentId = Number(id);
   if (!Number.isInteger(filamentId)) {

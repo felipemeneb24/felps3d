@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toCustomerDTO, normalizePhone } from "@/lib/customer";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const customerId = Number(id);
   if (!Number.isInteger(customerId)) {
@@ -49,9 +45,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const customerId = Number(id);
   if (!Number.isInteger(customerId)) {

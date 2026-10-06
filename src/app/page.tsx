@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ComponentType } from "react";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toFilamentDTO } from "@/lib/filament";
 import { resolveMonthFilter, shiftMonthParam } from "@/lib/month";
 import {
@@ -66,7 +65,6 @@ function totalsByChannel(grupos: OrderChannelGroup[]) {
 }
 
 export default async function Home({ searchParams }: PageProps) {
-  await requireUser();
   const { mes } = await searchParams;
   const month = resolveMonthFilter(mes);
 

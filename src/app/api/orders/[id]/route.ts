@@ -3,14 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { toOrderDTO, ORDER_STATUS_VALUES } from "@/lib/order";
 import { round, SHOPEE_COMMISSION_RATE, SHOPEE_FIXED_FEE } from "@/lib/quote";
 import type { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const orderId = Number(id);
   if (!Number.isInteger(orderId)) {
@@ -72,9 +68,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const orderId = Number(id);
   if (!Number.isInteger(orderId)) {

@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toOrderDTO } from "@/lib/order";
 import OrdersList from "./OrdersList";
 
 export const dynamic = "force-dynamic";
 
 export default async function PedidosPage() {
-  await requireUser();
   const orders = await prisma.order.findMany({
     where: { saleChannel: "DIRETA" },
     orderBy: [{ createdAt: "desc" }],

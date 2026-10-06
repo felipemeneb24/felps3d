@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toCustomerDTO } from "@/lib/customer";
 import CustomerManager from "./CustomerManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientesPage() {
-  await requireUser();
   const customers = await prisma.customer.findMany({ orderBy: [{ name: "asc" }] });
 
   return (

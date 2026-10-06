@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toFilamentDTO } from "@/lib/filament";
 import FilamentManager from "./FilamentManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function FilamentosPage() {
-  await requireUser();
   const filaments = await prisma.filament.findMany({
     orderBy: [{ colorName: "asc" }],
   });

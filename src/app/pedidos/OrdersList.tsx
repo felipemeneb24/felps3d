@@ -54,9 +54,9 @@ function nextMonthKey(key: string) {
 
 // Pílula do status inteira preenchida com a cor (não só borda), pra bater o olho rápido.
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  PENDENTE: "bg-slate-500 text-white",
-  EM_PRODUCAO: "bg-sky-500 text-white",
-  PRONTO_PARA_ENTREGA: "bg-accent text-accent-foreground",
+  PENDENTE: "bg-red-600 text-white",
+  EM_PRODUCAO: "bg-orange-500 text-white",
+  PRONTO_PARA_ENTREGA: "bg-yellow-400 text-yellow-950",
   ENVIADO: "bg-indigo-500 text-white",
   FINALIZADO: "bg-emerald-500 text-white",
 };
@@ -77,6 +77,8 @@ function matchesPeriod(order: OrderDTO, period: PeriodFilter) {
   return monthKey(order.deliveryDeadline) === period;
 }
 
+// Cada pedido é uma linha enxuta (produto, cliente, valor, prazo, status) — endereço,
+// filamento e exclusão ficam escondidos em "Ver detalhes".
 export default function OrdersList({ initialOrders }: { initialOrders: OrderDTO[] }) {
   const [orders, setOrders] = useState(initialOrders);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -250,7 +252,7 @@ export default function OrdersList({ initialOrders }: { initialOrders: OrderDTO[
           <p className="text-sm text-muted-foreground">Nenhum pedido nesse filtro.</p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-2">
           {sortedOrders.map((order) => {
             const remaining = daysUntil(order.deliveryDeadline);
             // Na Shopee o prazo cadastrado é sempre o de envio, não de entrega —
@@ -267,16 +269,16 @@ export default function OrdersList({ initialOrders }: { initialOrders: OrderDTO[
                 : ORDER_STATUS_VALUES.filter((status) => status !== "ENVIADO");
 
             return (
-              <li key={order.id} className="rounded-lg border border-border bg-card p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{order.productName}</p>
-                    <p className="text-sm text-muted-foreground">
+              <li key={order.id} className="rounded-lg border border-border bg-card px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:grid sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{order.productName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
                       {order.customerName}
                       {order.customerPhone && <> · {order.customerPhone}</>}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right sm:w-56">
                     {editingPriceId === order.id ? (
                       <div className="flex flex-col items-end gap-1">
                         <div className="flex items-center gap-1">
@@ -337,76 +339,73 @@ export default function OrdersList({ initialOrders }: { initialOrders: OrderDTO[
                             : ""}
                     </p>
                   </div>
-                </div>
-
-                <p className="mt-3 text-sm">
-                  <span className="text-muted-foreground">Endereço de entrega:</span>{" "}
-                  {order.deliveryAddress}
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {order.items.map((item) => (
-                    <span key={item.id} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                      {item.colorName}: {item.gramsUsed}g
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
-                    className={`rounded-full border-0 px-3 py-1.5 text-sm font-medium ${STATUS_STYLES[order.status]}`}
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status} className="bg-background text-foreground">
-                        {ORDER_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    onClick={() => handleTogglePaid(order)}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                      order.isPaid ? "bg-emerald-600 text-white" : "bg-rose-500 text-white"
-                    }`}
-                  >
-                    {order.isPaid ? "Pago" : "Sem pagar"}
-                  </button>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    onClick={() => setExpandedId(expanded ? null : order.id)}
-                    className="text-sm font-medium text-accent hover:underline"
-                  >
-                    {expanded ? "Ocultar detalhes" : "Ver detalhes"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(order)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-danger"
-                  >
-                    <IconTrash className="h-3.5 w-3.5" />
-                    Excluir pedido
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                    <select
+                      value={order.status}
+                      onChange={(e) => handleStatusChange(order, e.target.value as OrderStatus)}
+                      className={`w-40 rounded-full border-0 px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[order.status]}`}
+                    >
+                      {statusOptions.map((status) => (
+                        <option key={status} value={status} className="bg-background text-foreground">
+                          {ORDER_STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleTogglePaid(order)}
+                      className={`w-20 rounded-full px-2.5 py-1 text-center text-xs font-medium transition-colors ${
+                        order.isPaid ? "bg-emerald-600 text-white" : "bg-rose-500 text-white"
+                      }`}
+                    >
+                      {order.isPaid ? "Pago" : "Sem pagar"}
+                    </button>
+                    <button
+                      onClick={() => setExpandedId(expanded ? null : order.id)}
+                      className="w-28 text-left text-xs font-medium text-accent hover:underline"
+                    >
+                      {expanded ? "Ocultar detalhes" : "Ver detalhes"}
+                    </button>
+                  </div>
                 </div>
 
                 {expanded && (
-                  <div className="mt-4">
-                    <CostBreakdown
-                      printCost={order.printCost}
-                      filamentCost={order.filamentCost}
-                      extraCost={order.extraCost}
-                      extraCostNote={order.extraCostNote}
-                      totalCost={order.totalCost}
-                      suggestedPrice={order.suggestedPrice}
-                      salePrice={order.salePrice}
-                      shopeeFee={order.shopeeFee}
-                      shopeeProfit={order.shopeeProfit}
-                      overShopeeTier={order.overShopeeTier}
-                      initialShowShopee={order.saleChannel === "SHOPEE"}
-                      lockedSaleChannel={order.saleChannel}
-                    />
+                  <div className="mt-3 border-t border-border pt-3">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Endereço de entrega:</span>{" "}
+                      {order.deliveryAddress}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {order.items.map((item) => (
+                        <span key={item.id} className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                          {item.colorName}: {item.gramsUsed}g
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <CostBreakdown
+                        printCost={order.printCost}
+                        filamentCost={order.filamentCost}
+                        extraCost={order.extraCost}
+                        extraCostNote={order.extraCostNote}
+                        totalCost={order.totalCost}
+                        suggestedPrice={order.suggestedPrice}
+                        salePrice={order.salePrice}
+                        shopeeFee={order.shopeeFee}
+                        shopeeProfit={order.shopeeProfit}
+                        overShopeeTier={order.overShopeeTier}
+                        initialShowShopee={order.saleChannel === "SHOPEE"}
+                        lockedSaleChannel={order.saleChannel}
+                      />
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => handleDelete(order)}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-danger"
+                      >
+                        <IconTrash className="h-3.5 w-3.5" />
+                        Excluir pedido
+                      </button>
+                    </div>
                   </div>
                 )}
               </li>

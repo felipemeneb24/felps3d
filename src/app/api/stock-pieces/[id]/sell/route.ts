@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sellStockPieces } from "@/lib/stock-sale-service";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 // Venda de um modelo só (direta na feira ou Shopee). A lógica fica em
 // sellStockPieces, a mesma usada pelo carrinho (/api/stock-pieces/checkout).
 export async function POST(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const pieceId = Number(id);
   if (!Number.isInteger(pieceId)) {

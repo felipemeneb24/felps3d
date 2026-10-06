@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toFilamentDTO } from "@/lib/filament";
 import { toStockPieceDTO } from "@/lib/stock-piece";
 import StockManager from "./StockManager";
@@ -7,7 +6,6 @@ import StockManager from "./StockManager";
 export const dynamic = "force-dynamic";
 
 export default async function EstoquePage() {
-  await requireUser();
   const [filaments, pieces] = await Promise.all([
     prisma.filament.findMany({ orderBy: [{ colorName: "asc" }] }),
     prisma.stockPiece.findMany({

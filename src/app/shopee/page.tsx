@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth/session";
 import { toOrderDTO } from "@/lib/order";
 import OrdersList from "@/app/pedidos/OrdersList";
 import { IconShoppingBag } from "@/components/icons";
@@ -7,7 +6,6 @@ import { IconShoppingBag } from "@/components/icons";
 export const dynamic = "force-dynamic";
 
 export default async function ShopeePage() {
-  await requireUser();
   const orders = await prisma.order.findMany({
     where: { saleChannel: "SHOPEE" },
     orderBy: [{ createdAt: "desc" }],

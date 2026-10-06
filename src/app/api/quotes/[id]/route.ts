@@ -3,14 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { calculateQuote, toQuoteDTO } from "@/lib/quote";
 import { resolveQuoteInput } from "@/lib/quote-service";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const quoteId = Number(id);
   if (!Number.isInteger(quoteId)) {
@@ -75,9 +71,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const quoteId = Number(id);
   if (!Number.isInteger(quoteId)) {

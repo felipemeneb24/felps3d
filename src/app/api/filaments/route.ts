@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toFilamentDTO } from "@/lib/filament";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 export async function GET() {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const filaments = await prisma.filament.findMany({
     orderBy: [{ colorName: "asc" }],
   });
@@ -16,9 +12,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const body = await request.json();
 
   const colorName = String(body.colorName ?? "").trim();

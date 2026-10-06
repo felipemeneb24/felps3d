@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppShell from "@/components/AppShell";
-import { getCurrentUser } from "@/lib/auth/session";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,16 +18,14 @@ export const metadata: Metadata = {
   description: "Sistema de gestão da Felps 3D",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const user = await getCurrentUser();
-
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AppShell username={user?.username ?? null}>{children}</AppShell>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

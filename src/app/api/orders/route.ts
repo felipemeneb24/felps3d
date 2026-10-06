@@ -2,12 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toOrderDTO, SALE_CHANNEL_VALUES } from "@/lib/order";
 import { normalizePhone } from "@/lib/customer";
-import { requireApiAuth } from "@/lib/auth/session";
 
 export async function GET() {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const orders = await prisma.order.findMany({
     orderBy: [{ createdAt: "desc" }],
     include: { items: true },
@@ -17,9 +13,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const body = await request.json();
 
   const quoteId = Number(body.quoteId);

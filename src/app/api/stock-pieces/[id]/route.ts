@@ -4,14 +4,10 @@ import { calculateQuote } from "@/lib/quote";
 import { resolveStockPieceInput } from "@/lib/stock-piece-service";
 import { toStockPieceDTO } from "@/lib/stock-piece";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const pieceId = Number(id);
   if (!Number.isInteger(pieceId)) {
@@ -98,9 +94,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const { id } = await params;
   const pieceId = Number(id);
   if (!Number.isInteger(pieceId)) {

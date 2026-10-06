@@ -1,20 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toCustomerDTO, normalizePhone } from "@/lib/customer";
-import { requireApiAuth } from "@/lib/auth/session";
 
 export async function GET() {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const customers = await prisma.customer.findMany({ orderBy: [{ name: "asc" }] });
   return NextResponse.json(customers.map(toCustomerDTO));
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const body = await request.json();
 
   const name = String(body.name ?? "").trim();

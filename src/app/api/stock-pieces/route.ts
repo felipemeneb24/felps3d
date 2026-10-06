@@ -4,12 +4,8 @@ import { calculateQuote } from "@/lib/quote";
 import { resolveStockPieceInput } from "@/lib/stock-piece-service";
 import { toStockPieceDTO } from "@/lib/stock-piece";
 import { Prisma } from "@/generated/prisma/client";
-import { requireApiAuth } from "@/lib/auth/session";
 
 export async function GET() {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const pieces = await prisma.stockPiece.findMany({
     orderBy: [{ createdAt: "desc" }],
     include: { items: true },
@@ -19,9 +15,6 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = await requireApiAuth();
-  if (unauthorized) return unauthorized;
-
   const body = await request.json();
   const resolved = await resolveStockPieceInput(body);
   if ("error" in resolved) {
