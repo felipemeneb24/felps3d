@@ -20,6 +20,9 @@ function parseConnectionString(connectionString: string): PoolConfig {
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ""),
     charset: "utf8mb4",
+    // O MySQL 8+ usa caching_sha2_password; sem TLS o driver precisa buscar a chave
+    // pública RSA do servidor pra autenticar, senão falha com ER_CANNOT_RETRIEVE_RSA_KEY.
+    allowPublicKeyRetrieval: true,
     // Hospedagens de MySQL costumam ter um limite baixo de conexões simultâneas.
     // Mantemos o pool pequeno pra não estourar esse limite.
     connectionLimit: 5,
